@@ -10,13 +10,15 @@ import './index.css';
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 if (!CLIENT_ID) {
+  // This error will appear in your BROWSER console if the variable is missing.
   throw new Error('VITE_GOOGLE_CLIENT_ID is not defined in .env file');
 }
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <GoogleOAuthProvider clientId={CLIENT_ID}>
+      {/* Ensure the clientId prop receives the variable */}
+      <GoogleOAuthProvider clientId={CLIENT_ID}> 
         <AuthProvider>
           <ThemeProvider>
             <App />

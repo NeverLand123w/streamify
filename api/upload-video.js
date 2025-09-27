@@ -1,40 +1,31 @@
 // File: /api/upload-video.js
+const { put } = require('@vercel/blob');
 
-import { put } from '@vercel/blob';
-import { NextResponse } from 'next/server';
-
-// The 'edge' runtime is faster and designed for streaming.
-export const config = {
-  runtime: 'edge',
-};
-
-// The default handler for this serverless function.
-export default async function handler(request) {
-  const { searchParams } = new URL(request.url);
-  const filename = searchParams.get('filename');
+// This handler uses the Node.js runtime by default, which is more stable for local development (`vercel dev`).
+// Vercel's production environment will also handle this runtime perfectly.
+async function handler(request, response) {
+  // `request.query` contains the query parameters from the URL (e.g., ?filename=...)
+  const filename = request.query.filename;
 
   if (!filename) {
-    return new Response(
-      JSON.stringify({ message: 'Missing "filename" query parameter.' }), 
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
+    // If filename is missing, send a 400 Bad Request error.
+    return response.status(400).json({ message: 'Missing "filename" query parameter.' });
   }
 
+  // `request.body` is the raw stream of the file being uploaded.
   try {
-    // The request.body is a readable stream of the file contents.
-    // The `put` function streams this directly to the Vercel Blob store.
     const blob = await put(filename, request.body, {
-      access: 'public', // This makes the file publicly accessible via its URL.
+      access: 'public', // Make the uploaded file publicly accessible.
     });
 
-    // The `blob` object contains the URL and other metadata.
-    // We use NextResponse to send a JSON response.
-    return NextResponse.json(blob);
+    // On success, send back the blob object from Vercel.
+    return response.status(200).json(blob);
+
   } catch (error) {
-    console.error('Upload error:', error);
-    return new Response(
-      JSON.stringify({ message: 'Error uploading file.' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    console.error('Upload to Vercel Blob failed:', error);
+    // If an error occurs during upload, send a 500 Internal Server Error.
+    return response.status(500).json({ message: 'Error uploading file.' });
   }
 }
+
+module.exports = handler;
