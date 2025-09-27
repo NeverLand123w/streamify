@@ -1,17 +1,50 @@
-import React from 'react';
+// File: /src/pages/Home.jsx
+import React, { useState, useEffect } from 'react';
+import VideoCard from '../components/VideoCard';
 
+const gridStyles = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+  gap: '1rem',
+};
+
+/**
+ * Home Page
+ * 
+ * Fetches all videos from our `/api/videos` endpoint on component mount
+ * and displays them in a responsive grid.
+ */
 const Home = () => {
-  // In a real app, you would fetch video data here:
-  // const { data: videos, isLoading, error } = useFetch('/api/videos');
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchVideos = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/videos');
+        const data = await response.json();
+        setVideos(data);
+      } catch (error) {
+        console.error("Failed to fetch videos:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVideos();
+  }, []); // Empty dependency array means this runs once on mount
+
+  if (loading) {
+    return <div>Loading videos...</div>;
+  }
 
   return (
     <div>
-      <h1 style={{ textAlign: 'center' }}>Welcome to Streamify</h1>
-      <p style={{ textAlign: 'center' }}>Discover amazing content from creators around the world.</p>
-      {/* This is where you would map over your videos and display them in a grid */}
-      <div className="video-grid-placeholder" style={{ marginTop: '2rem', border: '2px dashed var(--border-color)', padding: '4rem', borderRadius: '8px', color: 'var(--text-color-muted)' }}>
-        <h2>Video Grid Placeholder</h2>
-        <p>Video content fetched from your backend API will be displayed here.</p>
+      <h1>Latest Videos</h1>
+      <div style={gridStyles}>
+        {videos.map((video) => (
+          <VideoCard key={video.id} video={video} />
+        ))}
       </div>
     </div>
   );
