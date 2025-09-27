@@ -1,91 +1,103 @@
 // File: src/pages/Upload.jsx
 
 import React, { useState, useRef } from 'react';
-import { upload } from '@vercel/blob/client'; // The magical client-side helper
 
 const Upload = () => {
-  const inputFileRef = useRef(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const inputFileRef = useRef(null); // Ref to access the file input element
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
-  const [blobResult, setBlobResult] = useState(null);
-  const [progress, setProgress] = useState(0);
+  const [uploadedBlob, setUploadedBlob] = useState(null);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
-    if (!inputFileRef.current?.files) {
-      setError('Please select a file to upload.');
-      return;
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) {
+        setFile(null);
+        return;
+    }
+    
+    // Optional: Add a client-side file size check
+    const MAX_FILE_SIZE_MB = 500;
+    if (selectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        setError(`File size cannot exceed ${MAX_FILE_SIZE_MB}MB.`);
+        setFile(null);
+        return;
     }
 
-    const file = inputFileRef.current.files[0];
-    if (!file) {
-      setError('File not found.');
-      return;
-    }
-
-    // Reset state before starting
+    setFile(selectedFile);
     setError(null);
-    setBlobResult(null);
-    setIsUploading(true);
-    setProgress(0);
+    setUploadedBlob(null);
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) {
+      setError('Please select a video file to upload.');
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    setUploadedBlob(null);
 
     try {
-      // The `upload` function handles everything for you:
-      // 1. It calls your `/api/upload` endpoint to get the signed URL.
-      // 2. It uploads the file directly to Vercel Blob Storage using that URL.
-      const newBlob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload', // This must match your backend route
-        onUploadProgress: (progressEvent) => {
-            // Update the progress state to show a loading bar
-            setProgress(progressEvent);
-        }
+      // The `fetch` API is used to send the file to our serverless function.
+      // The filename is passed as a query parameter.
+      const response = await fetch(`/api/upload?filename=${file.name}`, {
+        method: 'POST',
+        body: file, // The file object is the body.
       });
 
-      // After a successful upload, store the result
-      setBlobResult(newBlob);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Upload failed: ${response.statusText}`);
+      }
 
-    } catch (error) {
-      setError(error.message || 'An unexpected error occurred.');
+      const newBlob = await response.json();
+      setUploadedBlob(newBlob);
+
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
     } finally {
-      // Reset the uploading state whether it succeeded or failed
-      setIsUploading(false);
+      setUploading(false);
+      // Clear the file input for the next upload
+      if (inputFileRef.current) {
+        inputFileRef.current.value = '';
+      }
+      setFile(null);
     }
   };
 
   return (
     <div style={{ maxWidth: '600px', margin: 'auto', textAlign: 'center' }}>
       <h2>Upload a New Video</h2>
-      <p>This method supports large files by uploading directly to Blob storage.</p>
+      <p>Powered by Vercel Blob, this uploader supports files up to 500MB.</p>
       
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: '2px dashed #ccc', padding: '2rem', borderRadius: '8px' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: '2px dashed var(--border-color)', padding: '2rem', borderRadius: '8px' }}>
         <input 
-          ref={inputFileRef} 
+          ref={inputFileRef}
           type="file" 
           required 
           accept="video/*" 
-          disabled={isUploading}
+          onChange={handleFileChange} 
         />
-        <button type="submit" disabled={isUploading}>
-          {isUploading ? `Uploading... ${progress}%` : 'Upload Video'}
+        
+        <button type="submit" disabled={uploading || !file}>
+          {uploading ? 'Uploading...' : 'Upload Video'}
         </button>
       </form>
-
-      {isUploading && (
-        <progress value={progress} max="100" style={{width: '100%', marginTop: '1rem'}}></progress>
-      )}
       
-      {error && <p style={{ color: 'red', marginTop: '1rem' }}>Error: {error}</p>}
+      {error && <p style={{ color: 'red', marginTop: '1rem' }}>{error}</p>}
       
-      {blobResult && (
-        <div style={{ marginTop: '2rem', textAlign: 'left' }}>
-          <h3>✅ Upload Successful!</h3>
-          <p>
-            URL: <a href={blobResult.url} target="_blank" rel="noopener noreferrer">{blobResult.pathname}</a>
+      {uploadedBlob && (
+        <div style={{ marginTop: '2rem' }}>
+          <h3>Upload Successful!</h3>
+          <p style={{wordBreak: 'break-all'}}>
+            File URL: <a href={uploadedBlob.url} target="_blank" rel="noopener noreferrer">{uploadedBlob.url}</a>
           </p>
           <video controls width="100%" preload="metadata" style={{ borderRadius: '8px', marginTop: '1rem' }}>
-            <source src={blobResult.url} type={blobResult.contentType} />
+            <source src={uploadedBlob.url} type={file?.type || 'video/mp4'} />
             Your browser does not support the video tag.
           </video>
         </div>
